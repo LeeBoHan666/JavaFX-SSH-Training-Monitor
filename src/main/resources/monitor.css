@@ -1,6 +1,6 @@
 .app-root { -fx-background-color: #f4f7fb; -fx-font-family: "Microsoft YaHei", "Segoe UI", sans-serif; }
 .top-header { -fx-padding: 22px 30px 18px 30px; -fx-background-color: linear-gradient(to right, #101a2e, #17284a); }
-.logo-mark { -fx-min-width: 42px; -fx-min-height: 42px; -fx-alignment: center; -fx-background-color: #39d98a; -fx-background-radius: 12px; -fx-text-fill: #092218; -fx-font-size: 23px; -fx-font-weight: bold; }
+.logo-mark { -fx-min-width: 42px; -fx-min-height: 42px; -fx-pref-width: 42px; -fx-pref-height: 42px; -fx-alignment: center; -fx-background-color: #39d98a; -fx-background-radius: 12px; }
 .app-title { -fx-text-fill: white; -fx-font-size: 22px; -fx-font-weight: bold; }
 .app-subtitle { -fx-text-fill: #9fb0cf; -fx-font-size: 12px; }
 .live-badge { -fx-text-fill: #62e6a5; -fx-border-color: #337a60; -fx-border-radius: 16px; -fx-background-color: rgba(45, 180, 115, .12); -fx-background-radius: 16px; -fx-padding: 7px 12px; -fx-font-size: 11px; -fx-font-weight: bold; }
@@ -33,7 +33,66 @@
 .tip-line { -fx-text-fill: #7b8ba0; -fx-font-family: "Consolas", monospace; -fx-font-size: 10px; }
 .monitor-card { -fx-padding: 22px 22px 14px 22px; }
 .terminal-title { -fx-text-fill: #8ca3bd; -fx-font-size: 10px; -fx-font-family: "Consolas", monospace; -fx-font-weight: bold; }
+.view-toggle-group { -fx-background-color: #eef3f8; -fx-background-radius: 9px; -fx-padding: 3px; }
+.view-toggle { -fx-background-color: transparent; -fx-text-fill: #71839b; -fx-background-radius: 7px; -fx-padding: 7px 12px; -fx-font-size: 11px; -fx-font-weight: bold; -fx-cursor: hand; }
+.view-toggle:hover { -fx-background-color: #e1e9f2; }
+.view-toggle-selected { -fx-background-color: #ffffff; -fx-text-fill: #2868ba; -fx-effect: dropshadow(gaussian, rgba(30, 54, 85, .12), 5, .12, 0, 1); }
 .terminal-shell { -fx-background-color: #0d1420; -fx-background-radius: 11px; -fx-padding: 1px; }
+.snapshot-scroll, .snapshot-scroll > .viewport { -fx-background-color: #0d1420; -fx-background: #0d1420; -fx-background-radius: 11px; }
+.snapshot-scroll { -fx-border-color: transparent; -fx-padding: 0; }
+.snapshot-scroll .scroll-bar:vertical { -fx-background-color: #0d1420; }
+.snapshot-scroll .scroll-bar:vertical .thumb { -fx-background-color: #324761; -fx-background-radius: 5px; }
+.snapshot-scroll .scroll-bar:horizontal { -fx-min-height: 0; -fx-pref-height: 0; -fx-max-height: 0; -fx-opacity: 0; -fx-padding: 0; }
+.snapshot-page { -fx-background-color: #0d1420; }
+.snapshot-title { -fx-text-fill: #f0f6fc; -fx-font-size: 19px; -fx-font-weight: bold; }
+.snapshot-subtitle, .snapshot-muted { -fx-text-fill: #8ea4bc; -fx-font-size: 12px; }
+.snapshot-badge { -fx-text-fill: #6de3a7; -fx-background-color: rgba(45, 180, 115, .14); -fx-background-radius: 14px; -fx-padding: 7px 12px; -fx-font-weight: bold; }
+.snapshot-info-card, .snapshot-section { -fx-background-color: #141f30; -fx-border-color: #26364b; -fx-border-radius: 10px; -fx-background-radius: 10px; -fx-padding: 13px 15px; }
+.snapshot-info-title, .snapshot-metric-title { -fx-text-fill: #91a8c2; -fx-font-size: 11px; -fx-font-weight: bold; }
+.snapshot-info-value { -fx-text-fill: #dce8f5; -fx-font-size: 12px; }
+.snapshot-gpu-active { -fx-text-fill: #71e6a8; -fx-background-color: rgba(54, 217, 149, .13); -fx-background-radius: 10px; -fx-padding: 4px 8px; -fx-font-size: 10px; -fx-font-weight: bold; }
+.snapshot-gpu-idle { -fx-text-fill: #f2c878; -fx-background-color: rgba(242, 200, 120, .12); -fx-background-radius: 10px; -fx-padding: 4px 8px; -fx-font-size: 10px; -fx-font-weight: bold; }
+.snapshot-gpu-unavailable { -fx-text-fill: #ff9299; -fx-background-color: rgba(255, 110, 120, .12); -fx-background-radius: 10px; -fx-padding: 4px 8px; -fx-font-size: 10px; -fx-font-weight: bold; }
+.snapshot-active-card { -fx-background-color: linear-gradient(to bottom right, #172b40, #142337); -fx-border-color: #2e5c68; -fx-border-radius: 12px; -fx-background-radius: 12px; -fx-padding: 16px; }
+.snapshot-active-kicker { -fx-text-fill: #63dfa3; -fx-font-size: 11px; -fx-font-weight: bold; }
+.snapshot-active-name { -fx-text-fill: #f0f6fc; -fx-font-size: 16px; -fx-font-weight: bold; }
+.snapshot-progress { -fx-accent: #36d995; -fx-pref-height: 11px; }
+.snapshot-progress > .track { -fx-background-color: #26394c; -fx-background-radius: 8px; }
+.snapshot-progress > .bar { -fx-background-radius: 8px; }
+.snapshot-epoch-label { -fx-text-fill: #c3d6e9; -fx-font-size: 12px; -fx-font-weight: bold; }
+.snapshot-epoch-progress { -fx-accent: #54a5ff; -fx-pref-height: 8px; }
+.snapshot-epoch-progress > .track { -fx-background-color: #26394c; -fx-background-radius: 8px; }
+.snapshot-epoch-progress > .bar { -fx-background-radius: 8px; }
+.snapshot-percent { -fx-text-fill: #7ce9b2; -fx-font-size: 15px; -fx-font-weight: bold; }
+.snapshot-score-row { -fx-background-color: rgba(8, 16, 27, .48); -fx-background-radius: 8px; -fx-padding: 9px 11px; }
+.snapshot-score-tag { -fx-text-fill: #63dfa3; -fx-font-size: 11px; -fx-font-weight: bold; -fx-min-width: 94px; }
+.snapshot-score-value { -fx-text-fill: #dce8f5; -fx-font-size: 12px; -fx-font-family: "Cascadia Mono", "Consolas", monospace; }
+.snapshot-metric { -fx-min-width: 95px; -fx-background-color: rgba(8, 16, 27, .48); -fx-background-radius: 8px; -fx-padding: 9px 11px; }
+.snapshot-metric-value { -fx-text-fill: #e7f1fb; -fx-font-size: 14px; -fx-font-family: "Cascadia Mono", "Consolas", monospace; -fx-font-weight: bold; }
+.snapshot-section-title { -fx-text-fill: #e2edf8; -fx-font-size: 12px; -fx-font-weight: bold; }
+.snapshot-queue-done { -fx-text-fill: #6ee0a4; -fx-font-size: 12px; }
+.snapshot-queue-pending { -fx-text-fill: #a9bbcf; -fx-font-size: 12px; }
+.snapshot-queue-warning { -fx-text-fill: #ffb56c; -fx-font-size: 12px; }
+.snapshot-log { -fx-text-fill: #c5d5e6; -fx-font-size: 12px; -fx-font-family: "Cascadia Mono", "Consolas", monospace; -fx-background-color: #0a111c; -fx-background-radius: 8px; -fx-padding: 10px; }
+.system-metric-card { -fx-background-color: linear-gradient(to bottom right, #17263a, #121f31); -fx-border-color: #283a52; -fx-border-radius: 12px; -fx-background-radius: 12px; -fx-padding: 18px; }
+.system-metric-title { -fx-text-fill: #9bb0c8; -fx-font-size: 12px; -fx-font-weight: bold; }
+.system-metric-value { -fx-text-fill: #f0f6fc; -fx-font-size: 25px; -fx-font-weight: bold; -fx-font-family: "Cascadia Mono", "Consolas", monospace; }
+.system-metric-detail { -fx-text-fill: #8298b1; -fx-font-size: 11px; }
+.system-metric-progress { -fx-pref-height: 10px; -fx-background-radius: 7px; }
+.system-metric-progress > .track { -fx-background-color: #273a50; -fx-background-radius: 7px; }
+.system-metric-progress > .bar { -fx-background-radius: 7px; }
+.system-metric-green .system-metric-progress { -fx-accent: #38d995; }
+.system-metric-blue .system-metric-progress { -fx-accent: #53a9ff; }
+.system-metric-purple .system-metric-progress { -fx-accent: #a78bfa; }
+.system-metric-orange .system-metric-progress { -fx-accent: #f5a85f; }
+.system-current-card { -fx-background-color: linear-gradient(to bottom right, #17263a, #121f31); -fx-border-color: #283a52; -fx-border-radius: 10px; -fx-background-radius: 10px; -fx-padding: 13px 14px; }
+.system-current-card .system-metric-value { -fx-font-size: 17px; }
+.system-current-card.system-metric-green { -fx-border-color: #28644f; }
+.system-current-card.system-metric-blue { -fx-border-color: #2b527b; }
+.system-current-card.system-metric-purple { -fx-border-color: #514779; }
+.system-current-card.system-metric-orange { -fx-border-color: #705138; }
+.system-chart-card { -fx-background-color: #141f30; -fx-border-color: #26364b; -fx-border-radius: 11px; -fx-background-radius: 11px; -fx-padding: 13px; }
+.system-chart-title { -fx-text-fill: #e2edf8; -fx-font-size: 12px; -fx-font-weight: bold; }
 .terminal { -fx-control-inner-background: #0d1420; -fx-background-color: #0d1420; -fx-text-fill: #d4e4f3; -fx-highlight-fill: #2e5076; -fx-font-family: "Cascadia Mono", "Consolas", monospace; -fx-font-size: 14px; -fx-padding: 12px; }
 .terminal .content { -fx-background-color: #0d1420; }
 .terminal .scroll-bar:vertical { -fx-background-color: #0d1420; }

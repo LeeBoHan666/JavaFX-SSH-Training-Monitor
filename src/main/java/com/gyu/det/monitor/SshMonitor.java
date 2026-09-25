@@ -11,6 +11,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 
 /** Owns one SSH connection and streams the remote command output. */
 public final class SshMonitor implements AutoCloseable {
@@ -69,6 +70,11 @@ public final class SshMonitor implements AutoCloseable {
 
     public void poll(String remoteCommand, long intervalMillis,
                      Consumer<String> onFrame, Consumer<String> onStatus) throws Exception {
+        poll(remoteCommand, () -> intervalMillis, onFrame, onStatus);
+    }
+
+    public void poll(String remoteCommand, LongSupplier intervalMillis,
+                     Consumer<String> onFrame, Consumer<String> onStatus) throws Exception {
         connectSession(onStatus);
         onStatus.accept("已连接，正在读取 GYU-DET 训练快照");
         while (!closed) {
@@ -103,7 +109,7 @@ public final class SshMonitor implements AutoCloseable {
             if (!frame.isBlank()) onFrame.accept(frame);
 
             long elapsedMillis = (System.nanoTime() - cycleStarted) / 1_000_000;
-            long remaining = Math.max(0, intervalMillis - elapsedMillis);
+            long remaining = Math.max(0, intervalMillis.getAsLong() - elapsedMillis);
             while (!closed && remaining > 0) {
                 long step = Math.min(remaining, 100);
                 Thread.sleep(step);

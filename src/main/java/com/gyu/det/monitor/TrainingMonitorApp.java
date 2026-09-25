@@ -4,6 +4,7 @@ import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
@@ -13,20 +14,28 @@ import javafx.scene.control.PasswordField;
 import javafx.scene.control.Separator;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.canvas.Canvas;
+import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.Polyline;
+import javafx.scene.shape.Rectangle;
+import javafx.scene.image.WritableImage;
 import javafx.stage.Stage;
 
 import java.io.Reader;
+import java.io.InputStream;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
+import java.util.Base64;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class TrainingMonitorApp extends Application {
@@ -50,10 +59,21 @@ public final class TrainingMonitorApp extends Application {
     private final Button saveButton = new Button("保存配置");
     private final Button clearButton = new Button("清空");
     private final Button sendButton = new Button("发送");
+    private final Button trainingViewButton = new Button("训练输出");
+    private final Button systemViewButton = new Button("整机状态");
+    private final Label panelTitle = new Label("训练输出");
+    private final Label panelDescription = new Label("远程训练输出与错误信息会实时显示在这里");
     private final TextField remoteInput = new TextField();
     private final Label status = new Label("未连接");
     private final Label connectionHint = new Label("输入 SSH 命令后即可开始");
     private final TextArea output = new TextArea();
+    private final VBox snapshotOutput = new VBox(14);
+    private SystemStatusDashboard systemStatusDashboard;
+    private SystemNotificationService notificationService;
+    private GpuIdleNotifier gpuIdleNotifier;
+    private String latestSnapshotJson;
+    private String latestSnapshotProjectName;
+    private volatile boolean systemViewSelected;
     private final AtomicReference<SshMonitor> activeMonitor = new AtomicReference<>();
     private Thread monitorThread;
     private volatile boolean running;
@@ -66,6 +86,7 @@ public final class TrainingMonitorApp extends Application {
         stage.setTitle("训练监视器");
         stage.setMinWidth(1100);
         stage.setMinHeight(700);
+        stage.getIcons().add(createWindowIcon());
 
         BorderPane root = new BorderPane();
         root.getStyleClass().add("app-root");
@@ -76,13 +97,40 @@ public final class TrainingMonitorApp extends Application {
         Scene scene = new Scene(root, 1360, 860);
         scene.getStylesheets().add(getClass().getResource("/monitor.css").toExternalForm());
         stage.setScene(scene);
-        stage.setOnCloseRequest(event -> stopMonitor());
+        stage.setOnCloseRequest(event -> {
+            stopMonitor();
+            if (notificationService != null) notificationService.close();
+        });
         stage.show();
+        notificationService = new SystemNotificationService(stage);
     }
 
     private HBox buildHeader() {
-        Label logo = new Label("▣");
+        StackPane logo = new StackPane();
         logo.getStyleClass().add("logo-mark");
+        Rectangle screen = new Rectangle(21, 16);
+        screen.setArcWidth(3);
+        screen.setArcHeight(3);
+        screen.setFill(Color.web("#092218"));
+        Rectangle screenFill = new Rectangle(17, 12);
+        screenFill.setArcWidth(1);
+        screenFill.setArcHeight(1);
+        screenFill.setFill(Color.web("#baf6d8"));
+        Polyline activity = new Polyline(-6.5, 1, -2.5, 1, 0, -3, 3, 3, 6.5, -2);
+        activity.setStroke(Color.web("#159c68"));
+        activity.setStrokeWidth(1.8);
+        activity.setStrokeLineJoin(javafx.scene.shape.StrokeLineJoin.ROUND);
+        StackPane display = new StackPane(screen, screenFill, activity);
+        display.setTranslateY(-1);
+        Rectangle stand = new Rectangle(3, 3);
+        stand.setFill(Color.web("#092218"));
+        stand.setTranslateY(10);
+        Rectangle base = new Rectangle(11, 2);
+        base.setArcWidth(2);
+        base.setArcHeight(2);
+        base.setFill(Color.web("#092218"));
+        base.setTranslateY(13);
+        logo.getChildren().addAll(display, stand, base);
         Label title = new Label("训练监视器");
         title.getStyleClass().add("app-title");
         Label subtitle = new Label("SSH 远程训练状态实时查看");
@@ -96,6 +144,25 @@ public final class TrainingMonitorApp extends Application {
         header.setAlignment(Pos.CENTER_LEFT);
         header.getStyleClass().add("top-header");
         return header;
+    }
+
+    private WritableImage createWindowIcon() {
+        Canvas canvas = new Canvas(32, 32);
+        GraphicsContext graphics = canvas.getGraphicsContext2D();
+        graphics.setFill(Color.web("#39d98a"));
+        graphics.fillRoundRect(1, 1, 30, 30, 9, 9);
+        graphics.setFill(Color.web("#092218"));
+        graphics.fillRoundRect(7, 7, 18, 14, 3, 3);
+        graphics.setStroke(Color.web("#baf6d8"));
+        graphics.setLineWidth(2);
+        graphics.strokePolyline(new double[]{9, 16, 13, 16, 16, 11, 19, 17, 23, 12},
+                new double[]{16, 16, 12, 18, 13, 17, 11, 15, 15}, 5);
+        graphics.setFill(Color.web("#092218"));
+        graphics.fillRoundRect(14, 22, 4, 4, 1, 1);
+        graphics.fillRoundRect(11, 26, 10, 2, 1, 1);
+        WritableImage icon = new WritableImage(32, 32);
+        canvas.snapshot(null, icon);
+        return icon;
     }
 
     private HBox buildMainContent() {
@@ -166,7 +233,8 @@ public final class TrainingMonitorApp extends Application {
                 new Label("ssh user@host \"远程命令\""),
                 new Label("ssh -p 2222 user@host \"远程命令\""),
                 new Label("ssh -l user -p 2222 host \"远程命令\""),
-                new Label("默认每 1 秒按原 V2 监视器格式刷新"),
+                new Label("训练快照每 0.5 秒刷新；整机状态每 0.25 秒刷新"),
+                new Label("快照脚本缺失时自动读取项目状态"),
                 new Label("命令和密码会以明文离线保存"));
         tips.getStyleClass().add("tips-box");
         tips.getChildren().get(0).getStyleClass().add("tips-title");
@@ -184,15 +252,17 @@ public final class TrainingMonitorApp extends Application {
     private VBox buildMonitorCard() {
         Label eyebrow = new Label("MONITOR OUTPUT");
         eyebrow.getStyleClass().add("eyebrow");
-        Label title = new Label("训练输出");
-        title.getStyleClass().add("section-title");
-        Label description = new Label("远程标准输出和错误输出会实时显示在这里");
-        description.getStyleClass().add("muted-text");
-        VBox heading = new VBox(3, eyebrow, title, description);
+        panelTitle.getStyleClass().add("section-title");
+        panelDescription.getStyleClass().add("muted-text");
+        VBox heading = new VBox(3, eyebrow, panelTitle, panelDescription);
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
         clearButton.getStyleClass().add("secondary-button");
-        clearButton.setOnAction(event -> output.clear());
+        clearButton.setOnAction(event -> {
+            output.clear();
+            snapshotOutput.getChildren().clear();
+            latestSnapshotJson = null;
+        });
         HBox titleRow = new HBox(10, heading, spacer, clearButton);
         titleRow.setAlignment(Pos.CENTER_LEFT);
 
@@ -200,12 +270,30 @@ public final class TrainingMonitorApp extends Application {
         output.setWrapText(true);
         output.setPromptText("连接服务器后，训练日志会显示在这里…");
         output.getStyleClass().add("terminal");
-        StackPane terminal = new StackPane(output);
+        snapshotOutput.getStyleClass().add("snapshot-output");
+        snapshotOutput.setVisible(false);
+        snapshotOutput.setManaged(false);
+        javafx.scene.control.ScrollPane snapshotScroll = new javafx.scene.control.ScrollPane(snapshotOutput);
+        snapshotScroll.setFitToWidth(true);
+        snapshotScroll.setHbarPolicy(javafx.scene.control.ScrollPane.ScrollBarPolicy.NEVER);
+        snapshotScroll.getStyleClass().add("snapshot-scroll");
+        StackPane terminal = new StackPane(output, snapshotScroll);
         terminal.getStyleClass().add("terminal-shell");
         VBox.setVgrow(terminal, Priority.ALWAYS);
 
         Label outputTitle = new Label("TERMINAL  /  LIVE STREAM");
         outputTitle.getStyleClass().add("terminal-title");
+        trainingViewButton.getStyleClass().add("view-toggle");
+        systemViewButton.getStyleClass().add("view-toggle");
+        trainingViewButton.setOnAction(event -> selectRightView(false));
+        systemViewButton.setOnAction(event -> selectRightView(true));
+        HBox viewToggles = new HBox(4, trainingViewButton, systemViewButton);
+        viewToggles.getStyleClass().add("view-toggle-group");
+        updateViewToggleStyles();
+        Region outputSpacer = new Region();
+        HBox.setHgrow(outputSpacer, Priority.ALWAYS);
+        HBox outputToolbar = new HBox(10, outputTitle, outputSpacer, viewToggles);
+        outputToolbar.setAlignment(Pos.CENTER_LEFT);
         remoteInput.setPromptText("交互式 Shell 输入（例如 watch -n 1 nvidia-smi）");
         remoteInput.setPrefHeight(36);
         remoteInput.setDisable(true);
@@ -222,7 +310,7 @@ public final class TrainingMonitorApp extends Application {
         footer.setAlignment(Pos.CENTER_LEFT);
         footer.getStyleClass().add("monitor-footer");
 
-        VBox card = new VBox(14, titleRow, outputTitle, terminal, inputRow, footer);
+        VBox card = new VBox(14, titleRow, outputToolbar, terminal, inputRow, footer);
         card.getStyleClass().add("monitor-card");
         HBox.setHgrow(card, Priority.ALWAYS);
         return card;
@@ -277,12 +365,25 @@ public final class TrainingMonitorApp extends Application {
             showError("请输入连接密码");
             return;
         }
+        if (!saveConfig()) {
+            java.util.Arrays.fill(secret, '\0');
+            return;
+        }
         boolean structuredMode = "结构化训练监视".equals(monitorMode.getValue());
         String startupMonitorCommand = structuredMode ? buildSnapshotCommand() : bashCommand.getText().trim();
+        String fallbackSnapshotCommand = structuredMode ? buildGenericSnapshotCommand() : "";
+        String configuredProjectName = projectName.getText().trim();
         boolean startMonitorAutomatically = autoStartMonitor.isSelected() && !startupMonitorCommand.isBlank();
         boolean snapshotMode = parsed.interactiveShell() && structuredMode && startMonitorAutomatically;
 
+        latestSnapshotJson = null;
+        latestSnapshotProjectName = configuredProjectName;
+        systemStatusDashboard = new SystemStatusDashboard(configuredProjectName);
+        gpuIdleNotifier = structuredMode ? new GpuIdleNotifier() : null;
+        selectRightView(false);
+
         running = true;
+        showTerminalText();
         connectButton.setText("■  停止监视");
         connectButton.getStyleClass().remove("primary-button");
         connectButton.getStyleClass().add("stop-button");
@@ -301,7 +402,8 @@ public final class TrainingMonitorApp extends Application {
         monitorThread = new Thread(() -> {
             try {
                 if (snapshotMode) {
-                    runSnapshotMonitor(parsed, secret, trust, startupMonitorCommand, projectName.getText().trim());
+                    runSnapshotMonitor(parsed, secret, trust, startupMonitorCommand,
+                            fallbackSnapshotCommand, configuredProjectName);
                 } else {
                     runStreamingMonitor(parsed, secret, trust, startMonitorAutomatically, startupMonitorCommand);
                 }
@@ -320,23 +422,63 @@ public final class TrainingMonitorApp extends Application {
         String path = projectPath.getText().trim().replaceAll("/+$", "");
         String script = snapshotScript.getText().trim().replaceAll("^/+", "");
         if (interpreter.isBlank() || path.isBlank() || script.isBlank()) return "";
-        return interpreter + " " + path + "/" + script;
+        try (InputStream source = getClass().getResourceAsStream("/snapshot_wrapper.py")) {
+            if (source == null) return shellQuote(interpreter) + " " + shellQuote(path + "/" + script);
+            String encoded = Base64.getEncoder().encodeToString(source.readAllBytes());
+            String runner = "import base64;exec(base64.b64decode(\"" + encoded + "\"))";
+            return shellQuote(interpreter) + " -c " + shellQuote(runner) + " " + shellQuote(path + "/" + script);
+        } catch (Exception ignored) {
+            return shellQuote(interpreter) + " " + shellQuote(path + "/" + script);
+        }
+    }
+
+    private String buildGenericSnapshotCommand() {
+        String interpreter = pythonPath.getText().trim();
+        String path = projectPath.getText().trim();
+        if (interpreter.isBlank() || path.isBlank()) return "";
+        try (InputStream source = getClass().getResourceAsStream("/generic_snapshot.py")) {
+            if (source == null) return "";
+            String encoded = Base64.getEncoder().encodeToString(source.readAllBytes());
+            return shellQuote(interpreter)
+                    + " -c 'import base64;exec(base64.b64decode(\"" + encoded + "\"))' "
+                    + shellQuote(path);
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private static String shellQuote(String value) {
+        return "'" + value.replace("'", "'\\''") + "'";
     }
 
     private void runSnapshotMonitor(SshCommand parsed, char[] secret, boolean trust,
-                                    String snapshotCommand, String configuredProjectName) {
+                                    String snapshotCommand, String fallbackCommand,
+                                    String configuredProjectName) {
         int failures = 0;
+        String activeCommand = snapshotCommand;
         while (running && !Thread.currentThread().isInterrupted()) {
             try (SshMonitor monitor = new SshMonitor(parsed, secret, trust)) {
                 activeMonitor.set(monitor);
-                monitor.poll(snapshotCommand, 1_000,
+                monitor.poll(activeCommand, () -> systemViewSelected ? 250L : 500L,
                         raw -> publishSnapshot(raw, configuredProjectName),
                         text -> Platform.runLater(() -> setStatus(text, true)));
                 failures = 0;
             } catch (Exception ex) {
                 if (!running || Thread.currentThread().isInterrupted()) break;
+                if (activeCommand.equals(snapshotCommand) && !fallbackCommand.isBlank()
+                        && isMissingSnapshotScript(ex)) {
+                    activeCommand = fallbackCommand;
+                    failures = 0;
+                    Platform.runLater(() -> {
+                        connectionHint.setText("远程快照脚本不存在，已自动切换为通用状态读取");
+                        setStatus("正在读取项目状态", true);
+                    });
+                    continue;
+                }
                 int currentFailures = ++failures;
                 Platform.runLater(() -> {
+                    if (gpuIdleNotifier != null) gpuIdleNotifier.resetIdleTimer();
+                    showTerminalText();
                     output.setText(SnapshotFormatter.formatFailure(ex, currentFailures, configuredProjectName));
                     output.positionCaret(0);
                     setStatus("连接失败，1 秒后自动重试", false);
@@ -353,21 +495,128 @@ public final class TrainingMonitorApp extends Application {
         }
     }
 
+    private static boolean isMissingSnapshotScript(Exception error) {
+        String message = error.getMessage();
+        return message != null && message.contains("can't open file")
+                && message.contains("No such file or directory");
+    }
+
     private void publishSnapshot(String rawJson, String configuredProjectName) {
         try {
-            String frame = SnapshotFormatter.format(rawJson, configuredProjectName);
+            SnapshotFormatter.Frame frame = SnapshotFormatter.render(rawJson, configuredProjectName);
             Platform.runLater(() -> {
-                output.setText(frame);
-                output.positionCaret(0);
-                connectionHint.setText("按原 V2 监视器格式运行，每 1 秒原位刷新");
+                showSnapshot(rawJson, configuredProjectName, frame.text());
+                if (running && gpuIdleNotifier != null) {
+                    String notification = gpuIdleNotifier.observe(rawJson, System.currentTimeMillis());
+                    if (notification != null && notificationService != null) {
+                        notificationService.notify("GPU 已空闲", notification);
+                    }
+                }
+                connectionHint.setText(systemViewSelected
+                        ? "整机状态每 0.25 秒刷新；训练快照每 0.5 秒刷新"
+                        : "训练快照每 0.5 秒刷新；选择整机状态可提高到 0.25 秒");
                 setStatus("训练监视中", true);
             });
         } catch (Exception ex) {
             Platform.runLater(() -> {
+                showTerminalText();
                 output.setText("训练快照格式解析失败：\n" + safeMessage(ex) + "\n\n原始输出：\n" + rawJson);
                 output.positionCaret(0);
                 setStatus("训练快照解析失败", false);
             });
+        }
+    }
+
+    private void showSnapshot(String rawJson, String configuredProjectName, String fallbackText) {
+        try {
+            latestSnapshotJson = rawJson;
+            latestSnapshotProjectName = configuredProjectName;
+            if (systemStatusDashboard == null) systemStatusDashboard = new SystemStatusDashboard(configuredProjectName);
+            systemStatusDashboard.update(rawJson);
+            renderSelectedSnapshot();
+            output.setVisible(false);
+            output.setManaged(false);
+            snapshotOutput.setVisible(true);
+            snapshotOutput.setManaged(true);
+            snapshotScrollToggle(true);
+        } catch (Exception ex) {
+            showTerminalText();
+            output.setText(fallbackText);
+            output.positionCaret(0);
+        }
+    }
+
+    private void showTerminalText() {
+        systemViewSelected = false;
+        panelTitle.setText("训练输出");
+        panelDescription.setText("远程训练输出与错误信息会实时显示在这里");
+        updateViewToggleStyles();
+        output.setVisible(true);
+        output.setManaged(true);
+        snapshotOutput.setVisible(false);
+        snapshotOutput.setManaged(false);
+        snapshotScrollToggle(false);
+    }
+
+    private void selectRightView(boolean systemView) {
+        systemViewSelected = systemView;
+        panelTitle.setText(systemView ? "整机状态" : "训练输出");
+        panelDescription.setText(systemView ? "GPU、CPU 与系统内存的实时使用情况" : "远程训练输出与错误信息会实时显示在这里");
+        updateViewToggleStyles();
+        if (latestSnapshotJson != null) {
+            renderSelectedSnapshot();
+            output.setVisible(false);
+            output.setManaged(false);
+            snapshotOutput.setVisible(true);
+            snapshotOutput.setManaged(true);
+            snapshotScrollToggle(true);
+        } else if (systemView) {
+            if (systemStatusDashboard == null) systemStatusDashboard = new SystemStatusDashboard(latestSnapshotProjectName);
+            snapshotOutput.getChildren().setAll(systemStatusDashboard.node());
+            output.setVisible(false);
+            output.setManaged(false);
+            snapshotOutput.setVisible(true);
+            snapshotOutput.setManaged(true);
+            snapshotScrollToggle(true);
+        } else {
+            showTerminalText();
+        }
+    }
+
+    private void renderSelectedSnapshot() {
+        if (latestSnapshotJson == null) return;
+        try {
+            Node view;
+            if (systemViewSelected) {
+                if (systemStatusDashboard == null) systemStatusDashboard = new SystemStatusDashboard(latestSnapshotProjectName);
+                view = systemStatusDashboard.node();
+                if (snapshotOutput.getChildren().size() == 1 && snapshotOutput.getChildren().get(0) == view) return;
+            } else {
+                view = SnapshotDashboard.create(latestSnapshotJson, latestSnapshotProjectName, "");
+            }
+            snapshotOutput.getChildren().setAll(view);
+        } catch (Exception ex) {
+            Label error = new Label("快照解析失败：" + safeMessage(ex));
+            error.getStyleClass().add("snapshot-queue-warning");
+            error.setWrapText(true);
+            snapshotOutput.getChildren().setAll(error);
+        }
+    }
+
+    private void updateViewToggleStyles() {
+        trainingViewButton.getStyleClass().remove("view-toggle-selected");
+        systemViewButton.getStyleClass().remove("view-toggle-selected");
+        (systemViewSelected ? systemViewButton : trainingViewButton).getStyleClass().add("view-toggle-selected");
+    }
+
+    private void snapshotScrollToggle(boolean visible) {
+        if (output.getParent() instanceof StackPane stack) {
+            for (javafx.scene.Node child : stack.getChildren()) {
+                if (child instanceof javafx.scene.control.ScrollPane scroll && child != null) {
+                    scroll.setVisible(visible);
+                    scroll.setManaged(visible);
+                }
+            }
         }
     }
 
@@ -555,7 +804,7 @@ public final class TrainingMonitorApp extends Application {
         }
     }
 
-    private void saveConfig() {
+    private boolean saveConfig() {
         Properties properties = new Properties();
         properties.setProperty("ssh.command", sshCommand.getText());
         properties.setProperty("ssh.password", password.getText());
@@ -575,8 +824,10 @@ public final class TrainingMonitorApp extends Application {
             }
             connectionHint.setText("配置已保存到本机：" + CONFIG_FILE);
             setStatus("配置已保存", true);
+            return true;
         } catch (Exception ex) {
             showError("配置保存失败：" + safeMessage(ex));
+            return false;
         }
     }
 
